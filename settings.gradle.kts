@@ -1,1 +1,1 @@
-rootProject.name = "usbgpio"
+rootProject.name = "pi4j-usb-bridge"
