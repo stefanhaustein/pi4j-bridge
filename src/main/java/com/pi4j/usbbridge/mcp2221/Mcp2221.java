@@ -1,10 +1,14 @@
-package org.pi4j.usbbridge.mcp2221;
+package com.pi4j.usbbridge.mcp2221;
 
 import java.util.Arrays;
-import org.hid4java.*;
-import com.pi4j.io.SerialCircuitIO;
 
-public class Mcp2221 {
+import com.pi4j.io.i2c.I2C;
+import com.pi4j.io.i2c.I2CConfig;
+import org.hid4java.*;
+
+import com.pi4j.usbbridge.DirectContextBase;
+
+public class Mcp2221 extends DirectContextBase {
     final HidDevice device;
 
     static HidDevice findMcp2221() {
@@ -37,9 +41,7 @@ public class Mcp2221 {
         System.out.println("MCP2221 Configuration: " + Arrays.toString(response));
     }
 
-
-    public SerialCircuitIO openI2c(int address) {
-        return new Mcp2221I2c(this, address);
+    public I2C createI2c(I2CConfig config) {
+        return new I2CImpl(this, config);
     }
-
 }
