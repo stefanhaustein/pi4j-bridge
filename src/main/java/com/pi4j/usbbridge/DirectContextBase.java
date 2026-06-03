@@ -94,13 +94,13 @@ public abstract class DirectContextBase implements Context {
 
     @Override
     public <T extends IO> T shutdown(String id) throws IOInvalidIDException, IONotFoundException, IOShutdownException {
-        // TODO: Figure out if we need to do anything here
+        // TODO: Support in order to keep track of IO instances to shut down...
         throw new UnsupportedOperationException();
     }
 
     @Override
     public <T extends IO> void shutdown(T instance) throws IOInvalidIDException, IONotFoundException, IOShutdownException {
-        // TODO: Figure out if we need to do anything here
+        // TODO: Support in order to keep track of IO instances to shut down...
         throw new UnsupportedOperationException();
     }
 
@@ -124,17 +124,20 @@ public abstract class DirectContextBase implements Context {
 
     @Override
     public Context removeAllShutdownListeners() {
-        return null;
+        runtime.removeAllShutdownListeners();
+        return this;
     }
 
     @Override
     public Context addListener(ShutdownListener... shutdownListeners) {
-        return null;
+        runtime.addListener(shutdownListeners);
+        return this;
     }
 
     @Override
     public Context removeListener(ShutdownListener... shutdownListeners) {
-        return null;
+        runtime.removeListener(shutdownListeners);
+        return this;
     }
 
     /**
