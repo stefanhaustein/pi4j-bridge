@@ -33,7 +33,7 @@ import java.util.concurrent.Future;
 
 /** A context implementation that bypasses providers etc. */
 public abstract class DirectContextBase implements Context {
-    // TODO: Reduce this hackery...
+    // TODO: Reduce this hackery; some should be removable with the contextless config change.
     private final ContextConfig config = ContextBuilder.newInstance().toConfig();
     private final Runtime runtime = DefaultRuntime.newInstance(this);
     private final ContextProperties properties = DefaultContextProperties.newInstance(runtime.properties());
@@ -55,6 +55,7 @@ public abstract class DirectContextBase implements Context {
 
     @Override
     public Registry registry() {
+        // TODO: Support in order to keep track of IO instances to shut down...
         throw new UnsupportedOperationException();
     }
 
