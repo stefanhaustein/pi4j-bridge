@@ -133,13 +133,7 @@ public abstract class DirectContextBase implements Context {
         return this;
     }
 
-    /**
-     * We expect subclasses to implement specific create methods, so
-     * we invert the dispatch mechanism here: Instead of the specific create methods
-     * delegating to this generic methods, we provide concrete methods throwing
-     * unuspported errors for each type, and here we dispatch to the concrete methods by
-     * type.
-     */
+
     @Override
     @SuppressWarnings("unchecked")
     public <I extends IO> I create(IOConfig ioConfig, IOType ioType) {
@@ -158,6 +152,8 @@ public abstract class DirectContextBase implements Context {
         throw new UnsupportedOperationException();
     }
 
+
+    /** This should be the "main" (only?) thing to be implemented by concrete subclasses. */
     abstract protected <I extends IO> I createImpl(IOConfig ioConfig, IOType ioType);
 
 }
