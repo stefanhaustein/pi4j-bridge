@@ -103,6 +103,7 @@ public class Mcp2221 extends DirectContextBase {
     protected IO createImpl(IOConfig ioConfig, IOType ioType) {
         return switch (ioType) {
             case I2C -> new I2CImpl(this, (I2CConfig) ioConfig);
+            // TODO: Add Digital IO based on gpio methods.
             default -> throw new UnsupportedOperationException("Unsupported IO type: " + ioType);
         };
     }

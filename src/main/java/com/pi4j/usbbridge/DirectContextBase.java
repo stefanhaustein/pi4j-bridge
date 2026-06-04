@@ -15,14 +15,6 @@ import com.pi4j.io.IOType;
 import com.pi4j.io.exception.IOInvalidIDException;
 import com.pi4j.io.exception.IONotFoundException;
 import com.pi4j.io.exception.IOShutdownException;
-import com.pi4j.io.gpio.analog.*;
-import com.pi4j.io.gpio.digital.*;
-import com.pi4j.io.i2c.I2C;
-import com.pi4j.io.i2c.I2CConfig;
-import com.pi4j.io.pwm.Pwm;
-import com.pi4j.io.pwm.PwmConfig;
-import com.pi4j.io.spi.Spi;
-import com.pi4j.io.spi.SpiConfig;
 import com.pi4j.platform.Platforms;
 import com.pi4j.provider.Providers;
 import com.pi4j.registry.Registry;
@@ -36,6 +28,7 @@ public abstract class DirectContextBase implements Context {
     // TODO: Reduce this hackery; some should be removable with the contextless config change.
     private final ContextConfig config = ContextBuilder.newInstance().toConfig();
     private final Runtime runtime = DefaultRuntime.newInstance(this);
+    // This should be killable with the lastest v2 snapshot
     private final ContextProperties properties = DefaultContextProperties.newInstance(runtime.properties());
 
     @Override
