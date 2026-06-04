@@ -144,7 +144,7 @@ public abstract class DirectContextBase implements Context {
     @SuppressWarnings("unchecked")
     public <I extends IO> I create(IOConfig ioConfig, IOType ioType) {
         I port = createImpl(ioConfig, ioType);
-        // Register the IO instance with the runtimeRegistry(?) for shutdown.
+        // TODO: Register the IO instance with the runtimeRegistry(?) for shutdown here.
         return port;
     }
 
