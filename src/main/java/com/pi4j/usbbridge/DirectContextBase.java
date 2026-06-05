@@ -1,13 +1,17 @@
 package com.pi4j.usbbridge;
 
 import com.pi4j.boardinfo.model.BoardInfo;
+import com.pi4j.config.Config;
 import com.pi4j.context.Context;
 import com.pi4j.context.ContextBuilder;
 import com.pi4j.context.ContextConfig;
 import com.pi4j.context.ContextProperties;
 import com.pi4j.context.impl.DefaultContextProperties;
+import com.pi4j.event.InitializedEvent;
 import com.pi4j.event.InitializedListener;
+import com.pi4j.event.ShutdownEvent;
 import com.pi4j.event.ShutdownListener;
+import com.pi4j.exception.Pi4JException;
 import com.pi4j.exception.ShutdownException;
 import com.pi4j.io.IO;
 import com.pi4j.io.IOConfig;
@@ -20,25 +24,37 @@ import com.pi4j.provider.Providers;
 import com.pi4j.registry.Registry;
 import com.pi4j.runtime.Runtime;
 import com.pi4j.runtime.impl.DefaultRuntime;
+import com.pi4j.util.ExecutorPool;
 
+import java.lang.module.Configuration;
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-/** A context implementation that bypasses providers etc. */
+/**
+ * A context base implementation that bypasses providers and some other internal components that are not really
+ * needed without providers.
+ */
 public abstract class DirectContextBase implements Context {
-    // TODO: Reduce this hackery; some should be removable with the contextless config change.
-    private final ContextConfig config = ContextBuilder.newInstance().toConfig();
-    private final Runtime runtime = DefaultRuntime.newInstance(this);
-    // This should be killable with the lastest v2 snapshot
-    private final ContextProperties properties = DefaultContextProperties.newInstance(runtime.properties());
+    protected final Object lock = new Object();
+    protected final Map<String, IO> openIOs = new HashMap<>();
+    protected final List<InitializedListener> initializedListeners = new ArrayList<>();
+    protected final List<ShutdownListener> shutdownListeners = new ArrayList<>();
+    protected final ExecutorService executorService = Executors.newCachedThreadPool() ;
+
+
+    private boolean isShutdown = false;
 
     @Override
     public ContextConfig config() {
-       return config;
+       throw new UnsupportedOperationException();
     }
 
     @Override
     public ContextProperties properties() {
-        return properties;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -58,26 +74,51 @@ public abstract class DirectContextBase implements Context {
 
     @Override
     public Future<?> submitTask(Runnable task) {
-        return this.runtime.submitTask(task);
+        return executorService.submit(task);
     }
 
-    /** {@inheritDoc} */
     @Override
     public Context shutdown() throws ShutdownException {
-        // shutdown the runtime
-        this.runtime.shutdown();
+        synchronized (lock) {
+            if (isShutdown) {
+                return this;
+            }
+            List<Exception> exceptions = new ArrayList<>();
+            for (IO io : openIOs.values()) {
+                try {
+                    io.shutdownInternal(this);
+                } catch (Exception e) {
+                    exceptions.add(e);
+                }
+            }
+            openIOs.clear();
+            for (ShutdownListener listener : shutdownListeners) {
+                ShutdownEvent event = new ShutdownEvent(this);
+                try {
+                    listener.onShutdown(event);
+                } catch (Exception e) {
+                    exceptions.add(e);
+                }
+            }
+            isShutdown = true;
+            if (!exceptions.isEmpty()) {
+                throw new Pi4JException("Exception(s) in shutdown: " + exceptions, exceptions.getFirst());
+            }
+        }
         return this;
     }
 
-
     @Override
     public Future<Context> asyncShutdown() {
-        return this.runtime.asyncShutdown();
+        return executorService.submit(() -> {
+            shutdown();
+            return this;
+        });
     }
 
     @Override
     public boolean isShutdown() {
-        return this.runtime.isShutdown();
+        return isShutdown;
     }
 
     @Override
@@ -87,59 +128,78 @@ public abstract class DirectContextBase implements Context {
 
     @Override
     public <T extends IO> T shutdown(String id) throws IOInvalidIDException, IONotFoundException, IOShutdownException {
-        // TODO: Support in order to keep track of IO instances to shut down...
-        throw new UnsupportedOperationException();
+        synchronized (lock) {
+            T io = (T) openIOs.get(id);
+            shutdown(io);
+            return io;
+        }
     }
 
     @Override
     public <T extends IO> void shutdown(T instance) throws IOInvalidIDException, IONotFoundException, IOShutdownException {
-        // TODO: Support in order to keep track of IO instances to shut down...
-        throw new UnsupportedOperationException();
+        synchronized (lock) {
+            // We remove first so it's gone if shutdownInternal fails.
+            openIOs.remove(instance.id());
+            instance.shutdownInternal(this);
+        }
     }
 
     @Override
     public Context removeAllInitializedListeners() {
-        runtime.removeAllInitializedListeners();
+        synchronized (lock) {
+            initializedListeners.clear();
+        }
         return this;
     }
 
     @Override
     public Context addListener(InitializedListener... initializedListeners) {
-        runtime.addListener(initializedListeners);
+        synchronized (lock) {
+            this.initializedListeners.addAll(Arrays.asList(initializedListeners));
+        }
         return this;
     }
 
     @Override
     public Context removeListener(InitializedListener... initializedListeners) {
-        runtime.removeListener(initializedListeners);
+        synchronized (lock) {
+            this.initializedListeners.removeAll(Arrays.asList(initializedListeners));
+        }
         return this;
     }
 
     @Override
     public Context removeAllShutdownListeners() {
-        runtime.removeAllShutdownListeners();
+        synchronized (lock) {
+            shutdownListeners.clear();
+        }
         return this;
     }
 
     @Override
     public Context addListener(ShutdownListener... shutdownListeners) {
-        runtime.addListener(shutdownListeners);
+        synchronized (lock) {
+            this.shutdownListeners.addAll(Arrays.asList(shutdownListeners));
+        }
         return this;
     }
 
     @Override
     public Context removeListener(ShutdownListener... shutdownListeners) {
-        runtime.removeListener(shutdownListeners);
+        synchronized (lock) {
+            this.shutdownListeners.removeAll(Arrays.asList(shutdownListeners));
+        }
         return this;
     }
-
 
     @Override
     @SuppressWarnings("unchecked")
     public <I extends IO> I create(IOConfig ioConfig, IOType ioType) {
-        I port = createImpl(ioConfig, ioType);
-        // TODO: Register the IO instance with the runtimeRegistry(?) for shutdown here.
-        return port;
+        synchronized (lock) {
+            I port = createImpl(ioConfig, ioType);
+            openIOs.put(port.id(), port);
+            return port;
+        }
     }
 
     @Override
@@ -152,6 +212,20 @@ public abstract class DirectContextBase implements Context {
         throw new UnsupportedOperationException();
     }
 
+    /** Called by implementations when (deferred) initialization is complete. */
+    protected void notifyInitialized() {
+        // Defensive copy instead?
+        synchronized (lock) {
+            InitializedEvent event = new InitializedEvent(this);
+            for (InitializedListener listener : initializedListeners) {
+                try {
+                    listener.onInitialized(event);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
     /** This should be the "main" (only?) thing to be implemented by concrete subclasses. */
     abstract protected <I extends IO> I createImpl(IOConfig ioConfig, IOType ioType);

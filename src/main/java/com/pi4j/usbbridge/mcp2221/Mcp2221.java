@@ -5,6 +5,7 @@ import java.util.Arrays;
 import com.pi4j.io.IO;
 import com.pi4j.io.IOConfig;
 import com.pi4j.io.IOType;
+import com.pi4j.io.gpio.digital.DigitalOutputConfig;
 import com.pi4j.io.i2c.I2C;
 import com.pi4j.io.i2c.I2CConfig;
 import org.hid4java.*;
@@ -15,6 +16,7 @@ public class Mcp2221 extends DirectContextBase {
     final HidDevice device;
     final byte[] sendBuffer = new byte[64];
     final byte[] receiveBuffer = new byte[64];
+    final IO[] openIOs = new IO[4];
 
     static HidDevice findMcp2221() {
         HidServicesSpecification hidServicesSpecification = new HidServicesSpecification();
@@ -44,6 +46,9 @@ public class Mcp2221 extends DirectContextBase {
         device.read(response);
 
         System.out.println("MCP2221 Configuration: " + Arrays.toString(response));
+
+        // TODO: Query and change on demand only; consider changing back after shutdown.
+        setGpioConfiguration(Mcp2221.PinMode.GPIO, Mcp2221.PinMode.GPIO, Mcp2221.PinMode.GPIO, Mcp2221.PinMode.GPIO);
     }
 
     void prepareBuffer(int command) {
@@ -103,6 +108,7 @@ public class Mcp2221 extends DirectContextBase {
     protected IO createImpl(IOConfig ioConfig, IOType ioType) {
         return switch (ioType) {
             case I2C -> new I2CImpl(this, (I2CConfig) ioConfig);
+            case DIGITAL_OUTPUT -> new DigitalOutputImpl(this, (DigitalOutputConfig) ioConfig);
             // TODO: Add Digital IO based on gpio methods.
             default -> throw new UnsupportedOperationException("Unsupported IO type: " + ioType);
         };
