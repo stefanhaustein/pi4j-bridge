@@ -1,15 +1,25 @@
 package com.pi4j.bridge.mcp2221;
 
-class Command {
-    static final byte GET_GPIO_VALUES = (byte) 0x51;
-    static final byte GET_SRAM_SETTINGS = (byte) 0x61;
+enum Command {
+    GET_GPIO_VALUES(0x51, true),
+    GET_SRAM_SETTINGS(0x61, true),
 
-    static final byte I2C_GET_DATA = (byte) 0x40;
-    static final byte I2C_WRITE_DATA = (byte) 0x90;
-    static final byte I2C_READ_DATA = (byte) 0x91;
+    I2C_GET_DATA(0x40, false),
+    I2C_WRITE_DATA(0x90, false),
+    I2C_WRITE_DATA_NO_STOP(0x94, false),
+    I2C_WRITE_DATA_REPEATED_START(0x92, false),
+    I2C_READ_DATA(0x91, false),
 
-    static final byte SET_GPIO_OUTPUT_VALUES = (byte) 0x50;
-    static final byte SET_SRAM_SETTINGS = (byte) 0x60;
+    SET_GPIO_OUTPUT_VALUES(0x50, true),
+    SET_SRAM_SETTINGS(0x60, true),
 
-    static final byte STATUS_SET_PARAMETERS = 0x10;
+    STATUS_SET_PARAMETERS(0x10, true);
+
+    public final byte code;
+    public final boolean autoRetry;
+
+    Command(int code, boolean autoRetry) {
+        this.code = (byte) code;
+        this.autoRetry = autoRetry;
+    }
 }

@@ -22,36 +22,11 @@ class Mcp2221I2C extends I2CBase {
     @Override
     public void writeThenRead(byte[] writeBuffer, int writeOffset, int writeLength, int readDelayNanos, byte[] readBuffer, int readOffset, int readLength) {
         if (writeLength > 0) {
-            if (writeLength > I2C_CHUNK_SIZE) {
-                throw new IllegalArgumentException("TODO: Support > 60 byte write");
-            }
-            bridge.send(Command.I2C_WRITE_DATA, usbBuffer -> {
-                        usbBuffer[1] = (byte) writeLength;
-                        usbBuffer[2] = (byte) (writeLength >>> 8);
-                        usbBuffer[3] = (byte) ((address << 1) | 0);
-                        System.arraycopy(writeBuffer, writeOffset, usbBuffer, 4, writeLength);
-                    });
+            bridge.i2cWrite(Command.I2C_WRITE_DATA, address, writeBuffer, writeOffset, writeLength);
         }
 
         if (readLength > 0) {
-            bridge.send(Command.I2C_READ_DATA, usbBuffer -> {
-                        usbBuffer[1] = (byte) readLength;
-                        usbBuffer[2] = (byte) (readLength >>> 8);
-                        usbBuffer[3] = (byte) ((address << 1) | 1);
-                    });
-
-            int[] readCount = new int[1]; // Hack for writing from a lambda...
-            while (readCount[0] < readLength) {
-                bridge.receive(Command.I2C_GET_DATA,
-                        usbBuffer -> {
-                            int count = usbBuffer[3] & 0xff;
-                            if (count > 60) {
-                                throw new IllegalStateException("Unexpected byte count " + count);
-                            }
-                            System.arraycopy(usbBuffer, 4, readBuffer, readOffset + readCount[0], count);
-                            readCount[0] += count;
-                        });
-            }
+            bridge.i2cRead(Command.I2C_READ_DATA, address, readBuffer, readOffset, readLength);
         }
     }
 

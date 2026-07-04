@@ -23,7 +23,7 @@ dependencies {
     implementation("org.hid4java:hid4java:0.8.0")
     implementation("com.pi4j:pi4j-core:5.0.0-SNAPSHOT")
   //  implementation("com.pi4j:pi4j-plugin-ffm:4.0.1")
-    implementation("com.pi4j:pi4j-drivers:0.0.1-SNAPSHOT")
+    implementation("com.pi4j:pi4j-drivers:1.0.1-SNAPSHOT")
 }
 
 tasks.test {

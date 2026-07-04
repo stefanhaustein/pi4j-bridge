@@ -3,7 +3,6 @@ package com.pi4j.bridge;
 import com.pi4j.boardinfo.model.BoardInfo;
 import com.pi4j.context.Context;
 import com.pi4j.context.ContextConfig;
-import com.pi4j.context.ContextProperties;
 import com.pi4j.event.InitializedEvent;
 import com.pi4j.event.InitializedListener;
 import com.pi4j.event.ShutdownEvent;
@@ -16,7 +15,6 @@ import com.pi4j.io.IOType;
 import com.pi4j.io.exception.IOInvalidIDException;
 import com.pi4j.io.exception.IONotFoundException;
 import com.pi4j.io.exception.IOShutdownException;
-import com.pi4j.platform.Platforms;
 import com.pi4j.provider.Providers;
 import com.pi4j.registry.Registry;
 
@@ -169,16 +167,6 @@ public abstract class DirectContextBase implements Context {
         }
     }
 
-    @Override
-    public <I extends IO> I create(String s) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <I extends IO> I create(String s, IOType ioType) {
-        throw new UnsupportedOperationException();
-    }
-
     /** Called by implementations when (deferred) initialization is complete. */
     protected void notifyInitialized() {
         // Defensive copy instead?
@@ -198,16 +186,16 @@ public abstract class DirectContextBase implements Context {
     abstract protected <I extends IO> I createImpl(IOConfig ioConfig, IOType ioType);
 
 
+    @Override
+    public void register(IO io) {
+
+    }
 
     @Override
     public ContextConfig config() {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public ContextProperties properties() {
-        throw new UnsupportedOperationException();
-    }
 
     @Override
     public Providers providers() {
@@ -218,10 +206,4 @@ public abstract class DirectContextBase implements Context {
     public Registry registry() {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    public Platforms platforms() {
-        throw new UnsupportedOperationException();
-    }
-
 }
