@@ -16,7 +16,7 @@ import org.hid4java.*;
 import com.pi4j.bridge.DirectContextBase;
 
 public class Mcp2221 extends DirectContextBase {
-    static final int RETRY_COUNT = 4;
+    static final int AUTO_RETRY_COUNT = 4;
     static final double TIMEOUT_MS = 200;
 
     final HidDevice device;
@@ -64,7 +64,7 @@ public class Mcp2221 extends DirectContextBase {
     void releaseI2c() {
         I2cStatus i2cStatus = readI2cStatus();
         if (i2cStatus.initialized()) {
-            for (int i = 0; i < RETRY_COUNT; i++) {
+            for (int i = 0; i < AUTO_RETRY_COUNT; i++) {
                 send(Command.STATUS_SET_PARAMETERS, sendBuffer -> { sendBuffer[2] = 0x10; });
                 i2cStatus = readI2cStatus();
                 if (!i2cStatus.timeout() && i2cStatus.scl() && i2cStatus.sda()) {
@@ -121,49 +121,52 @@ public class Mcp2221 extends DirectContextBase {
         if (i2cDirty) {
             releaseI2c();
         }
-        long startTime = System.currentTimeMillis();
-        System.out.println("I2C_READ_DATA: " + length + " address: " + address);
+
         send(Command.I2C_READ_DATA, usbBuffer -> {
             usbBuffer[1] = (byte) length;
             usbBuffer[2] = (byte) (length >>> 8);
             usbBuffer[3] = (byte) ((address << 1) | 1);
         });
 
-        int[] counters = new int[2]; // Hack for writing count/errorcoumt from a lambda...
-        //
-        while (counters[0] < length) {
-            receive(Command.I2C_GET_DATA,
+        long startTime = System.currentTimeMillis();
+        int totalReceived = 0;
+
+        while (totalReceived < length) {
+            final int readOffset = offset + totalReceived;
+            int n = receive(Command.I2C_GET_DATA,
                     usbBuffer -> {
                         int count = usbBuffer[3] & 0xff;
-                        if (count == 127 && counters[1]++ < 4) {
-                            System.err.println("I2C_GET_DATA returned 127 bytes hickup");
-                        } else if (count > 60) {
-                            throw new IllegalStateException("Unexpected byte count " + count);
-                        } else {
-                            System.arraycopy(usbBuffer, 4, data, offset + counters[0], count);
-                            counters[0] += count;
+                        if (usbBuffer[1] != 0 || count > 60) {
+                            return 0;
                         }
-                        return null;
+                        System.arraycopy(usbBuffer, 4, data, readOffset, count);
+                        return count;
                     });
+            if (n > 0) {
+                startTime = System.currentTimeMillis();
+            }
+            if (startTime + TIMEOUT_MS < System.currentTimeMillis()) {
+                i2cDirty = true;
+                throw new IllegalStateException("I2C read timeout");
+            }
+            totalReceived += n;
         }
     }
 
     <R> R transfer(Command command, Consumer<byte[]>  send, Function<byte[], R> receive) {
         synchronized (lock) {
-            System.out.println("Command: " + command);
+            // System.out.println("Command: " + command);
             Arrays.fill(sendBuffer, (byte) 0);
             sendBuffer[0] = command.code;
             if (send != null) {
                 send.accept(sendBuffer);
             }
-            for (int i = 0; i < (command.autoRetry ? RETRY_COUNT : 1); i++) {
-                //delay.setMillis(100).materialize();
-                System.out.println("- sending: " + Arrays.toString(sendBuffer));
+            for (int i = 0; i < (command.autoRetry ? AUTO_RETRY_COUNT : 1); i++) {
+                // System.out.println("- sending: " + Arrays.toString(sendBuffer));
                 device.write(sendBuffer, 64, (byte) 0);
-                //   delay.setMillis(10).materialize();
                 Arrays.fill(receiveBuffer, (byte) 0);
                 device.read(receiveBuffer);
-                System.out.println("- received: " + Arrays.toString(receiveBuffer));
+                // System.out.println("- received: " + Arrays.toString(receiveBuffer));
                 if (receiveBuffer[0] != command.code) {
                     continue;
                 }
@@ -172,12 +175,12 @@ public class Mcp2221 extends DirectContextBase {
                   return receive == null ? null : receive.apply(receiveBuffer);
                 }
             }
-            if (receiveBuffer[0] != command.code) {
-                System.out.println("Unexpected command code loopback: " + (receiveBuffer[0] & 0xff) + "; expected " + command.code);
-                throw new IllegalStateException("Unexpected command code loopback: " + (receiveBuffer[0] & 0xff) + "; expected " + command);
-            }
-            System.out.println("Error code received for command " + command  + " : " + receiveBuffer[1] + "; expected: 0");
-            throw new IllegalStateException("Error code received for command " + command  + " : " + receiveBuffer[1] + "; expected: 0");
+            throw new IllegalStateException(
+                    receiveBuffer[0] != command.code
+                            ? "Unexpected command code loopback: " + (receiveBuffer[0] & 0xff)
+                                + "; expected " + command
+                            : ("Error code received for command " + command  + " : " + receiveBuffer[1]
+                                + "; expected: 0"));
         }
     }
 
