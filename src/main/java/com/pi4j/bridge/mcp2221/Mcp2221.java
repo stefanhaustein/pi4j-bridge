@@ -1,13 +1,17 @@
 package com.pi4j.bridge.mcp2221;
 
 import java.util.Arrays;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.pi4j.io.IO;
 import com.pi4j.io.IOConfig;
 import com.pi4j.io.IOType;
+import com.pi4j.io.gpio.digital.DigitalInputConfig;
 import com.pi4j.io.gpio.digital.DigitalOutputConfig;
+import com.pi4j.io.gpio.digital.DigitalState;
 import com.pi4j.io.i2c.I2C;
 import com.pi4j.io.i2c.I2CConfig;
 import com.pi4j.util.Delay;
@@ -19,13 +23,16 @@ public class Mcp2221 extends DirectContextBase {
     static final int AUTO_RETRY_COUNT = 4;
     static final double TIMEOUT_MS = 200;
 
-    final HidDevice device;
-    final byte[] sendBuffer = new byte[64];
-    final byte[] receiveBuffer = new byte[64];
-    final IO[] openIOs = new IO[4];
-    final Delay delay = new Delay();
+    private final HidDevice device;
+    private final byte[] sendBuffer = new byte[64];
+    private final byte[] receiveBuffer = new byte[64];
+    private final Delay delay = new Delay();
+    private final Timer timer = new Timer();
 
-    boolean i2cDirty = false;
+    final IO[] openIOs = new IO[4];
+
+    private boolean i2cDirty = false;
+    private TimerTask pollTask;
 
     static HidDevice findMcp2221() {
         HidServicesSpecification hidServicesSpecification = new HidServicesSpecification();
@@ -193,6 +200,7 @@ public class Mcp2221 extends DirectContextBase {
     }
 
     void setGpioConfiguration(int pin, PinMode mode) {
+        synchronized (lock) {
         byte[] modes = new byte[4];
         receive(Command.GET_SRAM_SETTINGS,
                 receivedBuffer -> {
@@ -207,8 +215,8 @@ public class Mcp2221 extends DirectContextBase {
                 sendBuffer[7] = (byte) 0b1000_0000;
                 System.arraycopy(modes, 0, sendBuffer, 8, 4);
             });
+        }
     }
-
 
     void setGpioDirection(int pin, GpioDirection direction) {
         send(Command.SET_GPIO_OUTPUT_VALUES, sendBuffer -> {
@@ -224,6 +232,19 @@ public class Mcp2221 extends DirectContextBase {
         });
     }
 
+    void updateInputStates() {
+        receive(Command.GET_GPIO_VALUES, (data) -> {
+           for (int i = 0; i < 4; i++) {
+               IO io = openIOs[i];
+               if (io instanceof Mcp2221DigitalInput) {
+                   int value = data[i + 2] & 0xff;
+                   ((Mcp2221DigitalInput) io).setState(value == 0 ? DigitalState.LOW : value == 1 ? DigitalState.HIGH : DigitalState.UNKNOWN);
+               }
+           }
+           return null;
+        });
+    }
+
 
     @Override
     public I2C create(I2CConfig config) {
@@ -236,11 +257,44 @@ public class Mcp2221 extends DirectContextBase {
         return switch (ioType) {
             case I2C -> new Mcp2221I2C(this, (I2CConfig) ioConfig);
             case DIGITAL_OUTPUT -> new Mcp2221DigitalOutput(this, (DigitalOutputConfig) ioConfig);
-            // TODO: Add Digital IO based on gpio methods.
+            case DIGITAL_INPUT -> new Mcp2221DigitalInput(this, (DigitalInputConfig) ioConfig);
             default -> throw new UnsupportedOperationException("Unsupported IO type: " + ioType);
         };
     }
 
+    /** Checks if any of the inputs has a listener; if so, start polling for input changes. */
+    void checkForInputListeners() {
+        synchronized (lock) {
+            boolean hasListeners = false;
+            for (IO io : openIOs) {
+                if (io instanceof Mcp2221DigitalInput) {
+                    Mcp2221DigitalInput input = (Mcp2221DigitalInput) io;
+                    if (input.hasListenersOrBindings()) {
+                        hasListeners = true;
+                        break;
+                    }
+                }
+            }
+            if (hasListeners) {
+                if (pollTask == null) {
+                    pollTask = new TimerTask() {
+                        @Override
+                        public void run() {
+                            synchronized (lock) {
+                                updateInputStates();
+                            }
+                        }
+                    };
+                    timer.schedule(pollTask, 100, 100);
+                }
+            } else {
+                if (pollTask != null) {
+                    pollTask.cancel();
+                    pollTask = null;
+                }
+            }
+        }
+    }
 
     enum PinMode {
         GPIO, DEDICATED, ALT_0, ALT_1, ALT_2

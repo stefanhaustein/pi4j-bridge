@@ -6,9 +6,9 @@ import com.pi4j.io.gpio.digital.*;
 class Mcp2221DigitalOutput extends DigitalOutputBase {
 
     private final Mcp2221 bridge;
-    private final int pin;
+    final int pin;
 
-    public Mcp2221DigitalOutput(Mcp2221 bridge, DigitalOutputConfig config) {
+    Mcp2221DigitalOutput(Mcp2221 bridge, DigitalOutputConfig config) {
         super(null, config);
         this.bridge = bridge;
         // bridge.checkConflictingConfig(config);
