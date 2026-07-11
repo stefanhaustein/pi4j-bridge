@@ -6,6 +6,8 @@ import java.util.TimerTask;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.pi4j.context.ContextBuilder;
+import com.pi4j.context.impl.DefaultContext;
 import com.pi4j.io.IO;
 import com.pi4j.io.IOConfig;
 import com.pi4j.io.IOType;
@@ -17,9 +19,7 @@ import com.pi4j.io.i2c.I2CConfig;
 import com.pi4j.util.Delay;
 import org.hid4java.*;
 
-import com.pi4j.bridge.DirectContextBase;
-
-public class Mcp2221 extends DirectContextBase {
+public class Mcp2221 extends DefaultContext {
     static final int AUTO_RETRY_COUNT = 4;
     static final double TIMEOUT_MS = 200;
 
@@ -28,6 +28,7 @@ public class Mcp2221 extends DirectContextBase {
     private final byte[] receiveBuffer = new byte[64];
     private final Delay delay = new Delay();
     private final Timer timer = new Timer();
+    private final Object lock = new Object();
 
     final IO[] openIOs = new IO[4];
 
@@ -50,6 +51,7 @@ public class Mcp2221 extends DirectContextBase {
 
     // TODO: Support multiple devices
     public Mcp2221() {
+        super(ContextBuilder.newInstance().toConfig());
         device = findMcp2221();
         device.open();
         readI2cStatus();  // Make sure status is not null.
@@ -252,8 +254,13 @@ public class Mcp2221 extends DirectContextBase {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected IO createImpl(IOConfig ioConfig, IOType ioType) {
+    public IO create(IOConfig ioConfig, IOType ioType) {
+        IO io = createImpl(ioConfig, ioType);
+        register(io);
+        return io;
+    }
+
+    IO createImpl(IOConfig ioConfig, IOType ioType) {
         return switch (ioType) {
             case I2C -> new Mcp2221I2C(this, (I2CConfig) ioConfig);
             case DIGITAL_OUTPUT -> new Mcp2221DigitalOutput(this, (DigitalOutputConfig) ioConfig);

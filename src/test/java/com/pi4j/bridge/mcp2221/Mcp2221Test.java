@@ -1,13 +1,19 @@
 package com.pi4j.bridge.mcp2221;
 
 import com.pi4j.context.Context;
+import com.pi4j.drivers.io.expander.ConfigurableIoExpander;
+import com.pi4j.drivers.io.expander.mcp23017.Mcp23017Driver;
 import com.pi4j.drivers.sensor.Sensor;
 import com.pi4j.drivers.sensor.SensorDetector;
 import com.pi4j.drivers.sensor.environment.bmx280.Bmx280Driver;
 import com.pi4j.drivers.sensor.environment.scd4x.Scd4xDriver;
 import com.pi4j.io.SerialCircuitIO;
+import com.pi4j.io.gpio.digital.DigitalInput;
+import com.pi4j.io.gpio.digital.DigitalOutput;
+import com.pi4j.io.gpio.digital.DigitalOutputConfig;
 import com.pi4j.io.i2c.I2C;
 import com.pi4j.io.i2c.I2CConfig;
+import com.pi4j.util.Delay;
 
 import java.util.Arrays;
 import java.util.List;
@@ -27,7 +33,7 @@ public class Mcp2221Test {
 
     }
 
-    static void main() {
+    static void main() throws InterruptedException {
         Mcp2221 context = new Mcp2221();
         context.setBaudRate(50_000);
 
@@ -42,15 +48,23 @@ public class Mcp2221Test {
 */
 
        readSensors(context);
-/*
-        DigitalOutput red = bridge.create(DigitalOutputConfig.newBuilder(bridge).bcm(1).build());
-        DigitalOutput yellow = bridge.create(DigitalOutputConfig.newBuilder(bridge).bcm(2).build());
-        DigitalOutput green = bridge.create(DigitalOutputConfig.newBuilder(bridge).bcm(3).build());
+
+        DigitalInput interruptPin = context.create(DigitalInput.newConfigBuilder(context).bcm(0));
+
+        Mcp23017Driver expander = new Mcp23017Driver(context.create(I2CConfig.newBuilder().bus(0).device(0x27)), interruptPin);
+        expander.setPullupResistorConfigurations(0xffff, true);
+        expander.setInputPolarities(0xffff, true);
+        expander.setIoDirections(0xffff, ConfigurableIoExpander.Direction.INPUT);
+
+        while (true) {
+            System.out.println(Integer.toBinaryString(expander.getInputStates()));
+            Thread.sleep(100);
+        }
 
 
-        Delay delay = new Delay();
 
-        Mcp23017Driver expander = new Mcp23017Driver(context.create(I2CConfig.newBuilder().bus(0).device(0x27)), null);
+
+        /*
         expander.setIoDirections(0xffff, ConfigurableIoExpander.Direction.OUTPUT);
         TrafficLight trafficLight1 = new TrafficLight(
                 expander.getOutput(8), expander.getOutput(9), expander.getOutput(10));
@@ -69,7 +83,6 @@ public class Mcp2221Test {
 
             delay.setMillis(1000).materialize();
         }
-        */
-
+*/
     }
 }
