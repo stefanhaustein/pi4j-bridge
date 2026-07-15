@@ -20,14 +20,19 @@ import com.pi4j.util.Delay;
 import org.hid4java.*;
 
 public class Mcp2221 extends DefaultContext {
-    static final int AUTO_RETRY_COUNT = 4;
-    static final double TIMEOUT_MS = 200;
+    public static final int I2C_BUS = 1;
+    public static final int GPIO_COUNT = 4;
 
+
+    private static final int AUTO_RETRY_COUNT = 4;
+    private static final double TIMEOUT_MS = 200;
+
+    
     private final HidDevice device;
     private final byte[] sendBuffer = new byte[64];
     private final byte[] receiveBuffer = new byte[64];
     private final Delay delay = new Delay();
-    private final Timer timer = new Timer();
+    private final Timer timer = new Timer(true);
     private final Object lock = new Object();
 
     final IO[] openIOs = new IO[4];

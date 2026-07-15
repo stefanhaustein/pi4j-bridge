@@ -35,7 +35,7 @@ public class Mcp2221Test {
 
     static void main() throws InterruptedException {
         Mcp2221 context = new Mcp2221();
-        context.setBaudRate(50_000);
+        context.setBaudRate(100_000);
 
 /*
         I2C scd4xI2c = context.create(I2CConfig.newBuilder(context).bus(0).device(Scd4xDriver.I2C_ADDRESS).build());
@@ -48,7 +48,7 @@ public class Mcp2221Test {
 */
 
        readSensors(context);
-
+/*
         DigitalInput interruptPin = context.create(DigitalInput.newConfigBuilder(context).bcm(0));
 
         Mcp23017Driver expander = new Mcp23017Driver(context.create(I2CConfig.newBuilder().bus(0).device(0x27)), interruptPin);
@@ -84,5 +84,8 @@ public class Mcp2221Test {
             delay.setMillis(1000).materialize();
         }
 */
+        System.out.println("Done");
+
+        context.shutdown();
     }
 }
